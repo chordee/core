@@ -164,12 +164,16 @@ def export_alembic(nodes,
     return mel.eval(mel_cmd)
 
 
-def imprint(node, data):
+def imprint(node, data, upsert=False):
     """Write `data` to `node` as userDefined attributes
+
+    Operation will fail if attribute existed and `upsert` is False.
 
     Arguments:
         node (str): Long name of node
         data (dict): Dictionary of key/value pairs
+        upsert (bool, optional): Update value when attribute exists,
+            default False.
 
     Example:
         >>> from maya import cmds
@@ -186,6 +190,7 @@ def imprint(node, data):
         6
 
     """
+    input_data = list()
 
     for key, value in data.items():
 
@@ -212,7 +217,16 @@ def imprint(node, data):
         else:
             raise TypeError("Unsupported type: %r" % type(value))
 
-        cmds.addAttr(node, longName=key, **add_type)
+        existed = cmds.objExists(node + "." + key)
+        if existed and not upsert:
+            raise RuntimeError("Attribute existsed: %s.%s" % (node, key))
+
+        input_data.append((existed, key, value, add_type, set_type))
+
+    # Write data
+    for existed, key, value, add_type, set_type in input_data:
+        if not existed:
+            cmds.addAttr(node, longName=key, **add_type)
         cmds.setAttr(node + "." + key, value, **set_type)
 
 
